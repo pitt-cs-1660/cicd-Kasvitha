@@ -1,38 +1,52 @@
+version: "3.8"
+
 services:
   fastapi:
-    ### Add build context instruction here
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/healthz || (echo 'Healthcheck failed' && exit 1)"]
-      interval: 10s
-      timeout: 60s
-      retries: 5
-    ### Add environment variables here
-
-    ### Add depends postgres here
-
-    ### expose ports here
+    build:
+      context: .  # Specifies that the Dockerfile in the current directory should be used
+      dockerfile: Dockerfile
+    container_name: fastapi-app
+    restart: always
+    depends_on:
+      - postgres  # Ensures PostgreSQL starts before FastAPI
+    environment:
+      - ENV=production
+      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/tasksdb
+    ports:
+      - "8000:8000"  # Expose FastAPI on port 8000
     volumes:
       - ./cc_compose:/app/cc_compose:Z
       - ./static:/app/static:Z
     stdin_open: true
     tty: true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/healthz || (echo 'Healthcheck failed' && exit 1)"]
+      interval: 10s
+      timeout: 60s
+      retries: 5
 
   postgres:
     image: postgres:15
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    container_name: postgres-db
+    restart: always
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgrespassword
       POSTGRES_DB: tasksdb
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   nginx:
     image: nginx:alpine
+    container_name: nginx-proxy
+    restart: always
     ports:
       - "80:80"
     volumes:
