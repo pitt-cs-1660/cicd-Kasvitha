@@ -80,8 +80,8 @@ jobs:
         id: auth
         with:
           project_id: 'cs1660project-451418'  # Update with your project ID
-          workload_identity_provider: 'projects/376210545277/locations/global/workloadIdentityPools/github-pool/providers/github-provider'  # Verify this matches your actual setup
-          service_account: 'github-actions@cs1660project-451418.iam.gserviceaccount.com'
+          workload_identity_provider: "projects/1094858932747/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          service_account: "github-actions@curious-framing-451620-c2.iam.gserviceaccount.com"
 
       - name: Authenticate Docker with Google Artifact Registry
         run: |
