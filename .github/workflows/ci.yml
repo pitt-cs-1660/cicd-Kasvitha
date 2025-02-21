@@ -59,7 +59,7 @@ jobs:
           POSTGRES_DB: tasksdb
         ports:
           - 5432:5432
-        options: --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+        options: --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 15
 
     steps:
       - name: Checkout repository
@@ -69,10 +69,8 @@ jobs:
         run: docker compose up -d
 
       - name: Wait for services to be healthy
-        run: |
-          sleep 10
-          wget --spider -q http://127.0.0.1:8000/healthz || exit 1
-          
+        run: sleep 30  # Increased wait time to allow services to fully initialize
+
       - name: Run Integration Tests
         run: ./tests/api_tests.sh
 

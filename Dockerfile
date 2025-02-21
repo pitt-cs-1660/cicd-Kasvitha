@@ -1,21 +1,4 @@
-# Stage 1: Build Dependencies
-FROM python:3.11-buster AS builder
-
-WORKDIR /app
-
-# Set environment variables for better logging
-ENV PYTHONUNBUFFERED=1
-
-RUN pip install --upgrade pip && pip install poetry
-
-# Copy dependency files first to cache them efficiently
-COPY pyproject.toml poetry.lock ./
-RUN poetry config virtualenvs.create false && poetry install --no-root --no-interaction --no-ansi
-
-# Now copy the entire project
-COPY . .
-
-# Stage 2: Final Image
+# Use the official Python image
 FROM python:3.11-buster AS app
 
 WORKDIR /app
@@ -35,6 +18,5 @@ USER appuser
 
 EXPOSE 8000
 
-# Use exec form for better signal handling in Docker
-
+# Use Poetry to ensure Uvicorn starts correctly
 CMD ["poetry", "run", "uvicorn", "cc_compose.server:app", "--host", "0.0.0.0", "--port", "8000"]
