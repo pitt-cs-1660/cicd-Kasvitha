@@ -1,34 +1,119 @@
-name: CI/CD Pipeline for FastAPI
+name: CI/CD Pipeline
 
 on:
   push:
     branches:
-      - main
+      - "**"
 
 jobs:
-  build-and-deploy:
+  docker-check:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    permissions:
-      contents: read
-      id-token: write  # Required for Workload Identity Federation
+      - name: Docker Compose Config Check
+        run: docker compose config
+
+      - name: Verify Dockerfile
+        run: |
+          DOCKERFILE=Dockerfile
+          if [[ ! -f "$DOCKERFILE" ]]; then
+            echo "❌ Dockerfile not found!"
+            exit 1
+          fi
+          
+          # Check number of stages
+          STAGE_COUNT=$(grep -c '^FROM' "$DOCKERFILE")
+          echo "✅ Found $STAGE_COUNT stages in the Dockerfile."
+          if [[ $STAGE_COUNT -lt 2 ]]; then
+            echo "❌ Dockerfile must have at least 2 stages (multi-stage build required)."
+            exit 1
+          fi
+
+          # Check base image
+          if ! grep -q '^FROM python:3.11-buster' "$DOCKERFILE"; then
+            echo "❌ Base image is not 'python:3.11-buster'"
+            exit 1
+          else
+            echo "✅ Base image is 'python:3.11-buster'"
+          fi
+
+          # Check WORKDIR
+          if ! grep -q '^WORKDIR /app' "$DOCKERFILE"; then
+            echo "❌ WORKDIR is not set to '/app'"
+            exit 1
+          else
+            echo "✅ WORKDIR is set to '/app'"
+          fi
+
+  integration-test:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: tasksdb
+        ports:
+          - 5432:5432
+        options: --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Authenticate with Google Cloud
-        id: auth
-        uses: google-github-actions/auth@v1
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+      - name: Start services
+        run: docker compose up -d
 
-      - name: Configure Docker for Artifact Registry
+      - name: Wait for services to be healthy
         run: |
-          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
+          sleep 10
+          wget --spider -q http://127.0.0.1:8000/healthz || exit 1
+          
+      - name: Run Integration Tests
+        run: ./tests/api_tests.sh
+
+      - name: Shutdown services
+        run: docker compose down
+
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: "read"
+      id-token: "write"
+    needs:
+      - integration-test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate with GCP
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: "cicd-benj210003"
+          workload_identity_provider: "projects/517895982903/locations/global/workloadIdentityPools/github/providers/my-repo"
+
+      - name: Configure Docker for GCP
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
 
       - name: Build and Push Docker Image
-        run: |
-          docker build -t ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fastapi-repo/fastapi-app:latest .
-          docker push ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fastapi-repo/fastapi-app:latest
+        uses: docker/build-push-action@v6
+        with:
+          context: ./
+          file: ./Dockerfile
+          push: true
+          tags: |
+            us-central1-docker.pkg.dev/cicd-benj210003/docker-repo/fastapi-server:latest
+            us-central1-docker.pkg.dev/cicd-benj210003/docker-repo/fastapi-server:${{ github.sha }}
+
+      - name: Cleanup old Docker images
+        run: docker system prune -f
