@@ -13,11 +13,10 @@ services:
     build:
       context: .
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8000/healthz || (echo 'Healthcheck failed' && exit 1)"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/healthz"]
       interval: 10s
       timeout: 60s
       retries: 5
-    # Environment variables for database connection
     environment:
       - DB_PATH=postgresql://postgres:postgrespassword@postgres:5432/tasksdb
     depends_on:
@@ -35,7 +34,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10  # Increased retries
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgrespassword
@@ -55,7 +54,7 @@ services:
       - nginx-logs:/var/log/nginx  # Mounted volume for logs
     depends_on:
       fastapi:
-        condition: service_started
+        condition: service_healthy  # Changed from service_started to service_healthy
     restart: always
     networks:
       - app-network
