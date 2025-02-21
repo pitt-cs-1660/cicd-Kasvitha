@@ -36,4 +36,5 @@ USER appuser
 EXPOSE 8000
 
 # Use exec form for better signal handling in Docker
-CMD ["uvicorn", "cc_compose.server:app", "--host", "0.0.0.0", "--port", "8000"]
+
+CMD ["poetry", "run", "uvicorn", "cc_compose.server:app", "--host", "0.0.0.0", "--port", "8000"]
