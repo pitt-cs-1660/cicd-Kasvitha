@@ -1,9 +1,7 @@
-name: CI/CD Pipeline
-
 on:
   push:
     branches:
-      - main
+      - '**'
 
 jobs:
   docker-check:
@@ -12,7 +10,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Validate Docker Compose configuration
+      - name: Docker compose config
         run: docker compose config
 
       - name: Verify Dockerfile
@@ -23,25 +21,34 @@ jobs:
             exit 1
           fi
 
-          # Check if Dockerfile has multiple stages
+          # Check number of stages
           STAGE_COUNT=$(grep -c '^FROM' "$DOCKERFILE")
           echo "✅ Found $STAGE_COUNT stages in the Dockerfile."
           if [[ $STAGE_COUNT -lt 2 ]]; then
-            echo "❌ Dockerfile must have at least 2 stages."
+            echo "❌ Dockerfile must have at least 2 stages (multi-stage build required)."
             exit 1
           fi
 
           # Check base image
-          if ! grep -qE '^FROM python:(3.10|3.11)-buster' "$DOCKERFILE"; then
-            echo "❌ Base image must be Python 3.10+ with Buster."
+          if ! grep -q '^FROM python:3.11-buster' "$DOCKERFILE"; then
+            echo "❌ Base image is not 'python:3.11-buster'"
             exit 1
           else
-            echo "✅ Valid base image detected."
+            echo "✅ Base image is 'python:3.11-buster'"
+          fi
+
+          # Check WORKDIR
+          if ! grep -q '^WORKDIR /app' "$DOCKERFILE"; then
+            echo "❌ WORKDIR is not set to '/app'"
+            exit 1
+          else
+            echo "✅ WORKDIR is set to '/app'"
           fi
 
   integration-test:
+    timeout-minutes: 10
+    name: Integration Tests
     runs-on: ubuntu-latest
-    needs: docker-check
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -58,36 +65,38 @@ jobs:
         run: docker compose down
 
   deploy:
-    runs-on: ubuntu-latest
-    needs: integration-test
+    runs-on: ubuntu-22.04
     permissions:
       contents: 'read'
       id-token: 'write'
-
+    needs:
+      - integration-test
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Authenticate with Google Cloud
+      - name: Authenticate with GCP
+        uses: 'google-github-actions/auth@v2'
         id: auth
-        uses: google-github-actions/auth@v2
         with:
-          project_id: "curious-framing-451620-c2"  # Replace with your actual GCP Project ID
-          workload_identity_provider: "projects/1094858932747/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
-          service_account: "github-actions@curious-framing-451620-c2.iam.gserviceaccount.com"
+          project_id: 'cs1660project-451418'  # Update with your project ID
+          workload_identity_provider: 'projects/376210545277/locations/global/workloadIdentityPools/github-pool/providers/github-provider'  # Verify this matches your actual setup
+          service_account: 'github-actions@cs1660project-451418.iam.gserviceaccount.com'
 
       - name: Authenticate Docker with Google Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
+          gcloud auth list  # Debugging: Verify that authentication works
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           platforms: linux/amd64,linux/arm64
 
-      - name: Build and Push Docker Image
+      - name: Build and Push the Image
         uses: docker/build-push-action@v6
         with:
-          context: ./
+          context: ./ 
           file: ./Dockerfile
           push: true
-          tags: us-central1-docker.pkg.dev/curious-framing-451620-c2/my-docker-repo/fastapi-server:v2
+          tags: us-central1-docker.pkg.dev/cs1660project-451418/first-artifact/fastapi-server:v2
