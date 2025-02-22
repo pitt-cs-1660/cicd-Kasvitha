@@ -97,3 +97,4 @@ jobs:
           push: true
           tags: us-central1-docker.pkg.dev/curious-framing-451620-c2/my-docker-repo/fastapi-server:v2
 
+          
