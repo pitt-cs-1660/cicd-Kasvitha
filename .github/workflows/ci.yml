@@ -76,8 +76,7 @@ jobs:
         with:
           project_id: 'curious-framing-451620-c2'  
           workload_identity_provider: 'projects/1094858932747/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
-          service_account: "github-actions@curious-framing-451620-c2.iam.gserviceaccount.com"
-
+        
       # configure/login with docker
       - name: Authenticate Docker with Google Artifact Registry
         run: |
