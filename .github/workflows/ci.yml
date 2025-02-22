@@ -86,7 +86,7 @@ jobs:
       - name: Authenticate Docker with Google Artifact Registry
         run: |
           gcloud auth configure-docker us-central1-docker.pkg.dev
-          gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://us-central1-docker.pkg.dev
+          
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
