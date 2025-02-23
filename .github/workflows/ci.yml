@@ -83,7 +83,7 @@ jobs:
         name: Authenticate to GCP
         with:
           project_id: 'curious-framing-451620-c2'
-          workload_identity_provider: 'projects/1094858932747/locations/global/workloadIdentityPools/github-pool/providers/my-repo'
+          workload_identity_provider: 'projects/1094858932747/locations/global/workloadIdentityPools/github-pool/providers/github-provider/my-repo'
           service_account: 'github-actions@curious-framing-451620-c2.iam.gserviceaccount.com'
 
       # configure/login with docker
